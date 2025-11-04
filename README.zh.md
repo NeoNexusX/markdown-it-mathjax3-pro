@@ -142,6 +142,76 @@ See test.ts for details
 
 详见test4csr.ts
 
+### React + Vite的客户端渲染示例
+
+**index.html**
+
+`<head>`元素之间添加如下代码:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React + TS</title>
+    <!-- markdown-it-mathjax3-pro -->
+    <script type="text/javascript">
+window.MathJax = {
+                                    startup: { 
+                                        ready: () => {
+                                            MathJax.startup.defaultReady();
+                                            console.log('MathJax loaded');
+                                        }
+                                    },
+                                    tex: {"inlineMath":[["$","$"]],"displayMath":[["$$","$$"]]},
+                                    options: {"enableMenu":true}
+                            };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+**markdown-it添加markdown-it-mathjax3-pro配置**
+
+```javascript
+import MarkdownIt from "markdown-it";
+import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
+
+new MarkdownIt()
+ .use(MarkdownItMathJaX3PRO, {
+          user_side: true,
+          mathjax_options: {
+            enableMenu: true,
+            // 其他 MathJax 选项
+          }
+        })
+```
+
+
+
+**渲染数学公式**
+
+需要在markdown-it渲染md文件为html之后渲染数学公式
+
+```javascript
+  // 渲染数学公式，当htmlContent第一次变化
+  const [htmlContent, setHtmlContent] = useState("");
+  //...
+  useEffect(() => {
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise();
+    }
+  }, [htmlContent]); // htmlContent 是你渲染完成后的 Markdown
+```
+
+
 ### Vitepress example
 
 ServerSide mode:

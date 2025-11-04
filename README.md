@@ -143,6 +143,73 @@ See test.ts for details
 
 See test4csr.ts for details
 
+### React + Vite Client-Side Rendering Example
+
+**index.html**
+
+Add the following code between the `<head>` elements:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React + TS</title>
+    <!-- markdown-it-mathjax3-pro -->
+    <script type="text/javascript">
+window.MathJax = {
+                                    startup: { 
+                                        ready: () => {
+                                            MathJax.startup.defaultReady();
+                                            console.log('MathJax loaded');
+                                        }
+                                    },
+                                    tex: {"inlineMath":[["$","$"]],"displayMath":[["$$","$$"]]},
+                                    options: {"enableMenu":true}
+                            };
+    </script>
+    <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+**Add markdown-it-mathjax3-pro configuration to markdown-it**
+
+```javascript
+import MarkdownIt from "markdown-it";
+import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
+
+new MarkdownIt()
+ .use(MarkdownItMathJaX3PRO, {
+          user_side: true,
+          mathjax_options: {
+            enableMenu: true,
+            // other MathJax options
+          }
+        })
+```
+
+**Render math formulas**
+
+You need to render math formulas after markdown-it has converted the markdown file into HTML:
+
+```javascript
+  // Render math formulas when htmlContent changes for the first time
+  const [htmlContent, setHtmlContent] = useState("");
+  //...
+  useEffect(() => {
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise();
+    }
+  }, [htmlContent]); // htmlContent is the rendered Markdown
+```
+
 ### Vitepress example
 
 ServerSide mode:
