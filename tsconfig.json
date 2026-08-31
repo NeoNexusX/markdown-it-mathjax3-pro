@@ -16,7 +16,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "removeComments": true,
+    "removeComments": false,
     "importHelpers": false
   },
   "include": [

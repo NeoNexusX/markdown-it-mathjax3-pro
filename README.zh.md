@@ -1,17 +1,29 @@
 # markdown-it-mathjax3-pro
 
-一个功能强大的 markdown-it 插件，支持 MathJax 3，具有增强功能，支持服务器端渲染 (SSR) 和客户端渲染 (CSR) 模式。
+[![CI](https://github.com/NeoNexusX/markdown-it-mathjax3-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/NeoNexusX/markdown-it-mathjax3-pro/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/markdown-it-mathjax3-pro.svg)](https://www.npmjs.com/package/markdown-it-mathjax3-pro)
+[![license](https://img.shields.io/npm/l/markdown-it-mathjax3-pro.svg)](./LICENSE)
 
-谢谢项目作为指导，我重构了整个项目，在此仍表示感谢：[markdown-it-mathjax3](https://github.com/tani/markdown-it-mathjax3 ) 
+一个支持 MathJax 3 的 markdown-it 插件,同时支持服务端渲染(SSR)和客户端渲染(CSR)两种模式。
+
+[English](./README.md) · **中文**
+
+本项目基于 [markdown-it-mathjax3](https://github.com/tani/markdown-it-mathjax3) 的思路重构而来,在此向该项目致谢。
 
 ## 特性
 
-- 🚀 **双重渲染模式**：支持 SSR 和 CSR 两种模式
-- 🎯 **性能增强**：为多个数学表达式优化的批处理
-- 🎨 **灵活输出**：支持 SVG 和 CHTML 输出格式
-- 📝 **自定义分隔符**：可配置的数学分隔符
-- 🔧 **TypeScript 支持**：完整的 TypeScript 支持和类型定义
-- 📦 **零配置**：开箱即用，具有合理的默认设置
+- 🚀 **双渲染模式** —— 既可以在服务端预渲染,也可以把公式原文交给浏览器里的 MathJax
+- 🎯 **批量处理** —— 整页公式共用一个 MathJax 文档,因此全页只需一份样式表,宏定义也能在公式之间共享
+- 🎨 **灵活输出** —— 支持 CHTML 与 SVG 两种输出格式
+- 📝 **自定义分隔符** —— 行内与块级分隔符均可配置
+- 🛡️ **容错** —— 单个无法解析的公式会就地降级,不会让整页渲染失败
+- 🔧 **TypeScript** —— 所有配置项均带类型定义
+- 📦 **零配置** —— 默认配置开箱即用
+
+## 环境要求
+
+- Node.js 18 及以上
+- markdown-it 12 及以上(peer dependency)
 
 ## 快速开始
 
@@ -30,9 +42,9 @@ import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
 const md = MarkdownIt().use(MarkdownItMathJaX3PRO);
 
 const markdown = `
-行内数学公式：$E = mc^2$
+行内公式:$E = mc^2$
 
-块级数学公式：
+块级公式:
 $$
 \\frac{d}{dx}\\int_{a}^{x} f(t)dt = f(x)
 $$
@@ -42,14 +54,31 @@ const result = md.render(markdown);
 console.log(result);
 ```
 
-## 项目配置
+### 获取样式表
 
-插件接受各种配置选项：
-
-### 服务器端渲染（默认）
+服务端渲染模式下,MathJax 还会为当前页生成一份样式表。向 `render` 传入 `env`
+对象,渲染完成后从中读取:
 
 ```javascript
-import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro'
+const env = {};
+const html = md.render(markdown, env);
+
+// 纯 CSS,可直接放进 <style> 元素:
+const css = env.mathjax_stylesheet;
+
+// 同样的内容,以 head 条目的形式给框架使用:
+const headEntries = env.frontmatter.inject_content;
+```
+
+缺少这份样式表时,辅助 MathML 会显示出来、间距也会错乱,所以它不是可选项。
+
+## 配置
+
+### 服务端渲染(默认)
+
+```javascript
+import MarkdownIt from 'markdown-it';
+import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
 
 const md = MarkdownIt().use(MarkdownItMathJaX3PRO, {
   tex: {
@@ -60,8 +89,14 @@ const md = MarkdownIt().use(MarkdownItMathJaX3PRO, {
   },
   chtml: {
     fontURL: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/output/chtml/fonts/woff-v2'
-  },
-  // 使用 SVG 输出代替 CHTML
+  }
+});
+```
+
+把 `chtml` 换成 `svg` 即可切换输出格式:
+
+```javascript
+const md = MarkdownIt().use(MarkdownItMathJaX3PRO, {
   svg: {
     fontCache: 'local',
     displayAlign: 'center'
@@ -72,81 +107,99 @@ const md = MarkdownIt().use(MarkdownItMathJaX3PRO, {
 ### 客户端渲染
 
 ```javascript
-import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro'
+import MarkdownIt from 'markdown-it';
+import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
 
 const md = MarkdownIt().use(MarkdownItMathJaX3PRO, {
   user_side: true,
+  tex: { tags: 'ams' },
   mathjax_options: {
-    enableMenu: true,
+    enableMenu: true
     // 其他 MathJax 选项
   }
 });
 ```
 
+该模式下插件依然会解析公式 —— 正是这一步保证了 Markdown 不会把公式里的 `*`、`_`
+或 LaTeX 换行符 `\\` 当成标记语法处理 —— 只是不做渲染,而是把公式原文原样写回,
+并向 `env.frontmatter.inject_content` 追加一个 MathJax 加载器,剩下的交给浏览器。
+
+你传入的 `tex` 会被转发到浏览器端配置,因此 `inlineMath`、`displayMath` 以及
+`tags` 之类的选项在两侧行为一致。这些值需要能被 `JSON.stringify` 序列化,所以以
+函数形式传入的 TeX 选项会被丢弃。
+
 ### 配置选项
 
-| 选项 | 类型 | 默认值 | 描述 |
+| 选项 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `user_side` | boolean | false | 启用客户端渲染模式 |
-| `tex` | object | {...} | TeX 输入处理器选项 |
-| `tex.inlineMath` | array | [['$', '$']] | 行内数学分隔符 |
-| `tex.displayMath` | array | [['$$', '$$']] | 块级数学分隔符 |
-| `chtml` | object | {...} | CHTML 输出选项 |
-| `svg` | object | undefined | SVG 输出选项（提供时使用 SVG 代替 CHTML） |
-| `mathjax_options` | object | {} | 客户端 MathJax 配置 |
+| `user_side` | boolean | `false` | 启用客户端渲染模式 |
+| `tex` | object | `{...}` | TeX 输入处理器选项 |
+| `tex.inlineMath` | array | `[['$', '$']]` | 行内公式分隔符 |
+| `tex.displayMath` | array | `[['$$', '$$']]` | 块级公式分隔符 |
+| `chtml` | object | `{...}` | CHTML 输出选项 |
+| `svg` | object | `undefined` | SVG 输出选项(设置后即以 SVG 取代 CHTML) |
+| `mathjax_options` | object | `{ enableMenu: true }` | 浏览器端 MathJax 的 `options` 配置块,仅客户端模式有效 |
 
-## 技术实现原理与 markdown-it-mathjax3 的区别和优势
+### 写入 `env` 的内容
 
-### 与 markdown-it-mathjax3 的主要区别
+| 键 | 模式 | 说明 |
+|-----|------|------|
+| `env.mathjax_stylesheet` | SSR | 当前页的纯 CSS;页面中没有公式时为 `null` |
+| `env.frontmatter.inject_content` | 两种模式 | head 条目:SSR 下是一条 `style`,CSR 下是配置与加载器两条 `script` |
+
+条目是追加写入的,因此其他插件贡献的 head 内容不会被覆盖。
+
+## 技术实现与 markdown-it-mathjax3 的区别
 
 1. **双模式支持**
-   - **SSR 模式**：使用 MathJax-full 在服务器上预渲染数学表达式
-   - **CSR 模式**：注入 MathJax 脚本进行客户端渲染
+    - **SSR 模式**:在服务端用 MathJax 预渲染公式
+    - **CSR 模式**:保护公式原文,并注入 MathJax 加载器
 
-2. **批处理机制**
-   - 在单个 MathJax 文档中处理所有数学表达式
-   - 显著提高包含多个公式的文档的性能
+2. **批量处理**
+    - 整页公式共用一个 MathJax 文档,因此全页只需一份样式表,某个公式里定义的宏
+      对后续公式同样可见
 
-3. **增强的灵活性**
-   - 支持 SVG 和 CHTML 输出格式
-   - 可配置的数学分隔符
-   - 更好的错误处理和验证
+3. **灵活性**
+    - 支持 CHTML 与 SVG 输出
+    - 分隔符可配置,且两种模式下行为一致
 
 4. **样式表管理**
-   - 自动提取和注入 CSS 样式
-   - 支持框架集成的 frontmatter 注入
+    - 自动提取 CSS 并追加到 `inject_content`,便于框架集成
+
+5. **故障隔离**
+    - 无法解析的公式会渲染成 MathJax 的错误框,或降级为转义后的原文,不会中断
+      整页渲染
 
 ### 架构设计
 
 ```
 输入 Markdown
      ↓
-解析数学标记（行内和块级）
+解析公式标记(行内与块级)
      ↓
-使用 MathJax 批处理
+SSR:用 MathJax 批量渲染    │    CSR:原样写回公式源码
+     ↓                     │         ↓
+用 HTML 替换标记            │    注入 MathJax 加载器
      ↓
-用渲染的 HTML 替换标记
-     ↓
-注入样式表
+追加到 inject_content
      ↓
 输出 HTML
 ```
 
 ## 示例
 
-### 完整的自定义配置示例
+可运行的示例位于 [example/](./example),执行以下命令即可运行:
 
-See test.ts for details
+```bash
+npm run example
+```
 
-### 客户端渲染示例
+- [example/test.ts](./example/test.ts) —— 服务端渲染,输出 `example/test.html`
+- [example/test4csr.ts](./example/test4csr.ts) —— 客户端渲染,输出 `example/test4csr.html`
 
-详见test4csr.ts
+### React + Vite 客户端渲染示例
 
-### React + Vite的客户端渲染示例
-
-**index.html**
-
-`<head>`元素之间添加如下代码:
+**index.html** —— 在 `<head>` 中加入 MathJax 配置与加载器:
 
 ```html
 <!doctype html>
@@ -158,16 +211,10 @@ See test.ts for details
     <title>Vite + React + TS</title>
     <!-- markdown-it-mathjax3-pro -->
     <script type="text/javascript">
-window.MathJax = {
-                                    startup: { 
-                                        ready: () => {
-                                            MathJax.startup.defaultReady();
-                                            console.log('MathJax loaded');
-                                        }
-                                    },
-                                    tex: {"inlineMath":[["$","$"]],"displayMath":[["$$","$$"]]},
-                                    options: {"enableMenu":true}
-                            };
+      window.MathJax = {
+        tex: { inlineMath: [['$', '$']], displayMath: [['$$', '$$']] },
+        options: { enableMenu: true }
+      };
     </script>
     <script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" id="MathJax-script"></script>
   </head>
@@ -178,50 +225,46 @@ window.MathJax = {
 </html>
 ```
 
-**markdown-it添加markdown-it-mathjax3-pro配置**
+**为 markdown-it 添加插件配置**
 
 ```javascript
-import MarkdownIt from "markdown-it";
+import MarkdownIt from 'markdown-it';
 import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
 
-new MarkdownIt()
- .use(MarkdownItMathJaX3PRO, {
-          user_side: true,
-          mathjax_options: {
-            enableMenu: true,
-            // 其他 MathJax 选项
-          }
-        })
+const md = new MarkdownIt().use(MarkdownItMathJaX3PRO, {
+  user_side: true,
+  mathjax_options: {
+    enableMenu: true
+    // 其他 MathJax 选项
+  }
+});
 ```
 
+**渲染完成后排版公式**
 
-
-**渲染数学公式**
-
-需要在markdown-it渲染md文件为html之后渲染数学公式
+需要在 markdown-it 把 Markdown 转成 HTML 之后再排版公式:
 
 ```javascript
-  // 渲染数学公式，当htmlContent第一次变化
-  const [htmlContent, setHtmlContent] = useState("");
-  //...
-  useEffect(() => {
-    if (window.MathJax?.typesetPromise) {
-      window.MathJax.typesetPromise();
-    }
-  }, [htmlContent]); // htmlContent 是你渲染完成后的 Markdown
+const [htmlContent, setHtmlContent] = useState('');
+// ...
+useEffect(() => {
+  if (window.MathJax?.typesetPromise) {
+    window.MathJax.typesetPromise();
+  }
+}, [htmlContent]); // htmlContent 是渲染完成的 Markdown
 ```
 
+### VitePress 示例
 
-### Vitepress example
-
-ServerSide mode:
+**服务端渲染模式**
 
 ```ts
-import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro'
+import { defineConfig, type HeadConfig } from 'vitepress';
+import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
 
 export default defineConfig({
-  title: "neonexus",
-  description: "docs for neonexus",
+  title: '我的文档',
+  description: '文档站点',
   vue: {
     template: {
       compilerOptions: {
@@ -231,48 +274,47 @@ export default defineConfig({
   },
   markdown: {
     config: (md) => {
-      md.use(mathjax3, {
-        // add new inlineMathSeparator && displayMathSeparator
+      md.use(MarkdownItMathJaX3PRO, {
+        // 自定义行内与块级分隔符
         tex: {
           inlineMath: [['$', '$'], ['§', '§']],
-          displayMath: [['$$', '$$'], ['§§', '§§']],
+          displayMath: [['$$', '$$'], ['§§', '§§']]
         },
-        //enable chtml mode 
+        // 使用 CHTML 输出
         chtml: {
           fontURL: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/output/chtml/fonts/woff-v2'
         }
-      })
+      });
     },
     theme: {
-      light: "catppuccin-latte",
-      dark: "catppuccin-macchiato",
-    },
+      light: 'catppuccin-latte',
+      dark: 'catppuccin-macchiato'
+    }
   },
-  //inject ccs to head for mathjax
+  // 把 MathJax 的 CSS 注入 <head>
   transformPageData(pageData) {
     const head = (pageData.frontmatter.head ??= []);
     const inject_content = pageData.frontmatter.inject_content;
     if (inject_content && Array.isArray(inject_content)) {
-      inject_content.forEach(item => {
+      inject_content.forEach((item) => {
         const { type, contribution, content } = item;
-        const headEntry = [type, contribution || {}, content || ''].filter(Boolean);
-        head.push(headEntry as HeadConfig);
+        head.push([type, contribution || {}, content || ''] as HeadConfig);
       });
-
       delete pageData.frontmatter.inject_content;
     }
-  },
-})
+  }
+});
 ```
 
-UserSide mode:
+**客户端渲染模式**
 
 ```ts
-import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro'
+import { defineConfig, type HeadConfig } from 'vitepress';
+import MarkdownItMathJaX3PRO from 'markdown-it-mathjax3-pro';
 
 export default defineConfig({
-  title: "your name",
-  description: "docs for wahtever",
+  title: '我的文档',
+  description: '文档站点',
   vue: {
     template: {
       compilerOptions: {
@@ -282,37 +324,80 @@ export default defineConfig({
   },
   markdown: {
     config: (md) => {
-      md.use(mathjax3, {
-        user_side: true,
-      })
-    },
+      md.use(MarkdownItMathJaX3PRO, {
+        user_side: true
+      });
+    }
   },
-  //inject for mathjax script
+  // 把 MathJax 的配置与加载器注入 <head>
   transformPageData(pageData) {
     const head = (pageData.frontmatter.head ??= []);
     const inject_content = pageData.frontmatter.inject_content;
     if (inject_content && Array.isArray(inject_content)) {
-      inject_content.forEach(item => {
+      inject_content.forEach((item) => {
         const { type, contribution, content } = item;
-        const headEntry = [type, contribution || {}, content || ''].filter(Boolean);
-        head.push(headEntry as HeadConfig);
+        head.push([type, contribution || {}, content || ''] as HeadConfig);
       });
       delete pageData.frontmatter.inject_content;
     }
-  },
-})
+  }
+});
 ```
 
+## 开发
 
+```bash
+npm install
+npm run build     # 编译到 dist/
+npm test          # 先编译,再运行单元测试
+npm run example   # 编译并运行两个示例
+```
+
+### 测试
+
+测试分两层,共用 `test/fixtures.js` 里的同一组样例:
+
+- **单元测试** —— `test/index.test.js` 检查插件返回的 HTML,不依赖浏览器,`npm test`
+  即可运行。每个修复过的 bug 在这里都有对应的回归用例。
+- **端到端测试** —— `test/e2e.test.js` 用本地 HTTP 服务提供生成的页面,再用无头
+  Chromium 打开,所有断言都针对真实 DOM:浏览器实际排版出了几个公式、MathJax 的
+  样式表是否真的生效、读者最终看到的文本是什么。MathJax 的浏览器包和字体都取自
+  `mathjax-full`,因此整个流程不访问 CDN,可离线运行。
+
+浏览器驱动 `playwright-core` 是 devDependency,但它驱动的浏览器是一份独立下载、
+安装时并不会拉取,所以 `npm install` 依然很轻。在你下载浏览器之前,端到端测试会
+自动跳过。
+
+```bash
+npm run e2e:install   # 下载配套的 chromium(一次即可)
+npm run test:e2e      # 只跑端到端
+npm run test:all      # 两层都跑
+```
+
+### 持续集成
+
+[`.github/workflows/ci.yml`](./.github/workflows/ci.yml) 会在推送到 `main` 和
+每个 Pull Request 上运行:
+
+| Job | 作用 |
+|-----|------|
+| `unit` | 在 Node 18、20、22、24 上编译并运行单元测试 |
+| `e2e` | 安装 Chromium 并运行端到端测试 |
+| `examples` | 运行两个示例,并检查它们生成的页面 |
+| `package` | 校验发布用的 tarball 包含构建产物、类型定义、许可证和两份 README |
+
+端到端 job 设置了 `E2E_REQUIRE_BROWSER=1`。不设置的话,浏览器缺失时测试会自动跳过
+并正常退出,等于用一个绿色的构建掩盖了覆盖率缺口;设置之后,浏览器缺失会直接让
+job 失败。
 
 ## 许可证
 
-MIT
+[MIT](./LICENSE)
 
 ## 贡献
 
-欢迎贡献！请随时提交 Pull Request。
+欢迎贡献!欢迎提 issue 或提交 Pull Request。
 
 ## 支持
 
-如果您有任何问题或疑问，请在 GitHub 上提出 issue。
+如果遇到问题,请在 GitHub 上提交 issue。

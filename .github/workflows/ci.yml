@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel an in-flight run when the same branch is pushed again.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22', '24']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build and run the unit suite
+        run: npm test
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # playwright-core is a devDependency, so npm ci brings the driver. It
+      # deliberately does not download a browser on install; that happens below
+      # and is cached between runs.
+      - run: npm ci
+
+      - name: Restore the browser download
+        id: browser-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          # Keyed on the lockfile so bumping playwright-core fetches a matching browser.
+          key: chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright-core install --with-deps chromium
+
+      - name: Install Chromium system dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: npx playwright-core install-deps chromium
+
+      - name: Build and run the end-to-end suite
+        # Without this the suite would skip itself and still exit zero when the
+        # browser is missing, hiding a gap in coverage behind a green build.
+        env:
+          E2E_REQUIRE_BROWSER: '1'
+        run: npm run test:e2e
+
+  examples:
+    name: Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build and run both examples
+        run: npm run example
+
+      - name: Check both examples produced output
+        run: |
+          test -s example/test.html
+          test -s example/test4csr.html
+          grep -q '<mjx-container' example/test.html
+          grep -q 'tex-mml-chtml.js' example/test4csr.html
+
+  package:
+    name: Package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Check the published tarball carries what it should
+        run: |
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          node -e "
+            const files = require(process.env.RUNNER_TEMP + '/pack.json')[0].files.map(f => f.path);
+            const required = [
+              'dist/index.js',
+              'dist/index.d.ts',
+              'package.json',
+              'LICENSE',
+              'README.md',
+              'README.zh.md',
+            ];
+            const missing = required.filter(f => !files.includes(f));
+            if (missing.length) {
+              throw new Error('missing from the tarball: ' + missing.join(', '));
+            }
+            console.log('tarball contents OK:', files.join(', '));
+          "
